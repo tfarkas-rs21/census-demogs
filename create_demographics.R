@@ -126,10 +126,25 @@ load("~/projects/mothr/mobility/demographics/tract_tables_list.RData")
 
 ## PUMS data ##
 ## all the person-level PUMS data
-pums_prsn_df <- pums %>%
+state_fips <- pums %>%
+  distinct(state) %>% collect()
+state_fips <- pull(state_fips, state)
+
+pums_prsn_df <- map_dfr(state_fips, ~{
+  #print(.x)
+  possibly(pums %>%
+    filter(state == .x) %>%
   arrange(ethnicity, race, age, income, ethnicity_hh, age_hh, race_hh) %>%
   collect()
+})
+  
+pums_prsn_df <- read_csv("~/projects/mothr/mobility/census-demogs/data/2019_pums.csv")
 
+pums_prsn_df <- pums_prsn_df %>%
+  mutate(across(PUMS, ~str_pad(as.character(as.numeric(.x)), 5, pad = "0"))) %>%
+  select(state = FIPS, puma = PUMS, ethnicity:count)
+
+save(pums_prsn_df, file = "~/projects/mothr/mobility/census-demogs/data/pums_prsn.RData")
 #### Helpers ####
 ### define demography helper objects for each marginal distribution 
 
@@ -267,21 +282,26 @@ as_fine_df <- tibble(field = as_fine_fields,
 
 ## load the household level PUMS data
 load("~/projects/mothr/mobility/PUMS/state_household.RData")
+load("~/projects/mothr/mobility/census-demogs/data/pums_prsn.RData")
 
 
-map(tract_list[1], ~{
+tract_jnt_list <- map(tract_list[1], ~{
 
-  # get relevant pums
-  thispuma <- .x %>% pull(puma) %>% unique
-  thisstate <- .x %>% pull(state) %>% unique
+  #### PUMS to seed IPF 
+  thispuma <- .x %>% pull(puma) %>% unique # PUMA for tract
+  thisstate <- .x %>% pull(state) %>% unique # state for tract
   
+  # create seed for final IPF from enclosing PUMA to this tract
   pums_prsn <- pums_prsn_df %>%
     filter(puma == thispuma , 
            state == thisstate) %>%
     arrange(ethnicity, race, age, income, ethnicity_hh, age_hh, race_hh) %>%
-    select(-c(totalcount, puma, state)) %>%
+    select(-c(puma, state)) %>%
     tbl_pivot_array
   
+  # create seed for intermediate IPF to create person-level data from 
+  # household level data, leveraging NP (number of people per household)
+  # from raw PUMS data. 
   pums_hhld <- pums_hh %>%
     filter(PUMA == thispuma, 
            ST == thisstate) %>%
@@ -289,38 +309,43 @@ map(tract_list[1], ~{
     arrange(income_hh, ethn_hh, age_hh, race_hh, NP) %>%
     tbl_pivot_array(met_name = "N_HSHLD")
   
-  # get / create race ethnicity marginal
+  #### create marginal distributions
+  ### household-level tract marginals
+  # # age_hh by income_hh marginal
+  # # probably don't need this one at all ... 
+  # ...i.a._marg <- .x %>%
+  #   filter(concept_id %in% ...i.a._fields) %>%
+  #   left_join(...i.a._df, by = c(concept_id = "field")) %>%
+  #   left_join(income_lookup, by = c("income" = "income_bins")) %>%
+  #   group_by(income.y, age_hh) %>%
+  #   summarize(across(value, sum)) %>%
+  #   rename(income = income.y) %>%
+  #   arrange(income, age_hh) %>%
+  #   tbl_pivot_array 
+  # 
+  # # get / create age_hh by income marginal
+  # # just a duplicate of above? TODO delete
+  # ...i.a._marg <- .x %>%
+  #   filter(concept_id %in% ...i.a._fields) %>%
+  #   left_join(...i.a._df, by = c(concept_id = "field")) %>%
+  #   left_join(income_lookup, by = c("income" = "income_bins")) %>%
+  #   group_by(income.y, age_hh) %>%
+  #   summarize(across(value, sum)) %>%
+  #   rename(income = income.y) %>%
+  #   arrange(income, age_hh) %>%
+  #   tbl_pivot_array 
+  # 
+  #### person-level tract data
+  # race by ethnicity marginal
   er....._marg <- .x %>%
     filter(concept_id %in% er....._fields) %>%
-     left_join(er....._df, by = c(concept_id = "field")) %>%
+    left_join(er....._df, by = c(concept_id = "field")) %>%
     arrange(ethn, race) %>%
     select(ethn, race, value) %>%
     tbl_pivot_array 
   
-  # get / create age_hh by income_hh marginal
-  ...i.a._marg <- .x %>%
-    filter(concept_id %in% ...i.a._fields) %>%
-    left_join(...i.a._df, by = c(concept_id = "field")) %>%
-    left_join(income_lookup, by = c("income" = "income_bins")) %>%
-    group_by(income.y, age_hh) %>%
-    summarize(across(value, sum)) %>%
-    rename(income = income.y) %>%
-    arrange(income, age_hh) %>%
-    tbl_pivot_array 
-  
-  # get / create age_hh by income marginal
-  ...i.a._marg <- .x %>%
-    filter(concept_id %in% ...i.a._fields) %>%
-    left_join(...i.a._df, by = c(concept_id = "field")) %>%
-    left_join(income_lookup, by = c("income" = "income_bins")) %>%
-    group_by(income.y, age_hh) %>%
-    summarize(across(value, sum)) %>%
-    rename(income = income.y) %>%
-    arrange(income, age_hh) %>%
-    tbl_pivot_array 
-  
-  #### Race By Ethnicity By Age Marginal
-  ### loop through race tables, combine sexes, and infer finer age binning
+  ### Race By Ethnicity By Age Marginal
+  ## loop through race tables, combine sexes, and infer finer age binning
   
   # get the fine by coarse age seed for IPF
   age_seed <- .x %>%
@@ -362,15 +387,16 @@ map(tract_list[1], ~{
         summarize(across(value, sum))
     }) %>% set_names(LETTERS[1:9])
   
-  ## get age by race marginal
+  # age by race marginal
   .ra...._marg <- age_tables[1:7] %>% 
     bind_rows() %>%
     bind_cols(tibble(race = rep(c("White", "Black", "Native", 
                                 "Asian", "Islander", "Other", "2 or more"), each = 5)), 
               .) %>% 
+    arrange(race, age) %>%
     tbl_pivot_array()
   
-  ## get ethnicity by age marginal
+  # ethnicity by age marginal
   e.a...._marg <- age_tables[[9]] %>%
     bind_rows(
   age_tables[1:7] %>% 
@@ -382,11 +408,11 @@ map(tract_list[1], ~{
     mutate(NH = total - H) %>%
     pivot_longer(cols = c(H, NH), names_to = "ethn") %>%
     select(ethn, age, value) %>%
+    arrange(ethn, age) %>%
     tbl_pivot_array()
   
-  ## get ethnicity by race by age sparse marginal
-  era...._marg 
-  age_tables[c(1,8)] %>%
+  # ethnicity by race by age sparse marginal
+  era...._marg <- age_tables[c(1,8)] %>%
     bind_rows() %>%
     mutate(ethn = rep(c("total", "H"), each = 5), 
            race = "White") %>%
@@ -399,9 +425,11 @@ map(tract_list[1], ~{
                                    "Asian", "Islander", "Other", "2 or more"), 
                           age = c("0-19", "20-39", "40-59", "60-79", "80+")), 
               .) %>%
+    arrange(ethn, race, age) %>%
     tbl_pivot_array()
   
-  ### Income_HH by Ethn_HH by Age_HH by Race_HH Marginals
+  ### household-level tract marginals
+  ## income_hh by ethn_hh by age_hh by race_hh marginals
   # get all the tables 
   ...iear_tables <-.x %>%
     filter(concept_id %in% ...iear_fields) %>%
@@ -419,7 +447,8 @@ map(tract_list[1], ~{
     select(income_hh, age_hh, race_hh, value) %>%
     left_join(income_lookup, by = c("income_hh" = "income_bins")) %>% 
     group_by(income, age_hh, race_hh) %>%
-      summarize(across(value, sum)) %>%
+      summarize(across(value, sum, na.rm = TRUE)) %>%
+    arrange(income, age_hh, race_hh) %>%
     tbl_pivot_array()
   
   # income_hh by ethnicity_hh by age_hh
@@ -437,7 +466,8 @@ map(tract_list[1], ~{
     select(income_hh, ethn_hh, age_hh, value) %>%
     left_join(income_lookup, by = c("income_hh" = "income_bins")) %>% 
     group_by(income, ethn_hh, age_hh) %>%
-    summarize(across(value, sum)) %>%
+    summarize(across(value, sum, na.rm = TRUE)) %>%
+    arrange(income, ethn_hh, age_hh) %>%
     tbl_pivot_array()
   
   # income_hh by ethnicity_hh by age_hh by race_hh
@@ -458,7 +488,8 @@ map(tract_list[1], ~{
               .) %>% 
     left_join(income_lookup, by = c("income_hh" = "income_bins")) %>% 
     group_by(income, ethn_hh, age_hh, race_hh) %>%
-    summarize(across(value, sum)) %>%
+    summarize(across(value, sum, na.rm = TRUE)) %>%
+    arrange(income, ethn_hh, age_hh, race_hh) %>%
     tbl_pivot_array() 
     
 
@@ -471,14 +502,25 @@ map(tract_list[1], ~{
   ppl_hh_jnt_raw <- expand_household(hhld_jnt, ppl_var = "NP") 
   # correct for almost certain mismatch between tract-estimate for total # of ppl
   # and values derived from IPF using PUMA seed
-  ppl_hh_jnt_cor <- ppl_hh_jnt_raw * (sum(er....._marg) / sum(ppl_hh_jnt_raw)) 
+  ppl_hh_jnt_cor <- ppl_hh_jnt_raw * (sum(er....._marg) / sum(ppl_hh_jnt_raw))
+  
+  # recover household level marginals, so as not to overprescribe
+  ...iea._marg <- ppl_hh_jnt_cor %>%
+    apply(MARGIN = c(1, 2, 3), sum, na.rm = TRUE)
+  ...i.ar_marg <- ppl_hh_jnt_cor %>%
+    apply(MARGIN = c(1, 3, 4), sum, na.rm = TRUE)
+  ...iear_marg <- ppl_hh_jnt_cor
+  ...iear_marg[,,,1:6] <- NA
   
   # run person IPF 
-  target_prsn_dims <- list(c(1, 2), 4:7)
-  target_prsn_margs <- list(er....._marg, ppl_hh_jnt_cor)
+  target_prsn_dims <- list(c(1, 2), c(2, 3), c(1, 3), c(1, 2, 3), 
+                           c(4, 5, 6), c(4, 6, 7), 4:7)
+  target_prsn_margs <- list(er....._marg, .ra...._marg, e.a...._marg, 
+                            era...._marg, 
+                            ...iea._marg, ...i.ar_marg, ...iear_marg)
   Ipfp(seed = pums_prsn, 
-       target_prsn_dims, target_prsn_margs)$x.hat %>%
-    apply(X = ., MARGIN = c(1, 2, 3, 4), FUN = sum)
+       target_prsn_dims, target_prsn_margs, na.target = TRUE)$x.hat %>%
+    apply(X = ., MARGIN = c(1, 2, 3, 4), FUN = sum, na.rm = TRUE)
   
 })
   
