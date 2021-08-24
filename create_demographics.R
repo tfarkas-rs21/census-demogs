@@ -181,8 +181,7 @@ ethn_bins <- c("NH", "H")
 # field names
 er....._fields <- paste0("B03002_", 
                          str_pad(as.character(c(3:9, 13:19)), 
-                                 3, "left", "0") , 
-                         "E")
+                                 3, "left", "0"), "E")
 
 # create lookup to link field names to demographic categories
 er....._df <- tibble(ethn = rep(c("NH", "H"),  each=7), 
@@ -490,11 +489,18 @@ tract_jnt_list <- map(tract_list[1], ~{
   target_prsn_margs <- list(er....._marg, .ra...._marg, e.a...._marg, 
                             era...._marg, 
                             ...iea._marg, ...i.ar_marg, ...iear_marg)
-  Ipfp(seed = pums_prsn, 
+  tract_jnt <- Ipfp(seed = pums_prsn, 
        target_prsn_dims, target_prsn_margs, na.target = TRUE)$x.hat %>%
-    apply(X = ., MARGIN = c(1, 2, 3, 4), FUN = sum, na.rm = TRUE)
+    apply(X = ., MARGIN = c(1, 2, 3, 4), FUN = sum, na.rm = TRUE) %>%
+    as.tbl_cube %>%
+    as.data.frame %>%
+    rename(count = 5) %>%
+    mutate(across(count, round, digits = 4))
   
 })
+
+tract_jnt %>%
+  summarize(total = sum(count))
   
 apply(pums_jnt, MARGIN = c(4, 6), FUN = sum)
 
