@@ -348,7 +348,46 @@ map(tract_list[1], ~{
         group_by(age) %>%
         summarize(across(value, sum))
     }) %>% set_names(LETTERS[1:9])
-
+  
+  ## get age by race marginal
+  .ra...._marg <- age_tables[1:7] %>% 
+    bind_rows() %>%
+    bind_cols(tibble(race = rep(c("White", "Black", "Native", 
+                                "Asian", "Islander", "Other", "2 or more"), each = 5)), 
+              .) %>% 
+    tbl_pivot_array()
+  
+  ## get ethnicity by age marginal
+  e.a...._marg <- age_tables[[9]] %>%
+    bind_rows(
+  age_tables[1:7] %>% 
+    bind_rows() %>%
+    group_by(age) %>%
+    summarize(across(value, sum))) %>%
+    mutate(ethn = rep(c("H", "total"), each = 5)) %>%
+    pivot_wider(id_cols = age, names_from = ethn, values_from = value) %>%
+    mutate(NH = total - H) %>%
+    pivot_longer(cols = c(H, NH), names_to = "ethn") %>%
+    select(ethn, age, value) %>%
+    tbl_pivot_array()
+  
+  ## get ethnicity by race by age sparse marginal
+  era...._marg 
+  age_tables[c(1,8)] %>%
+    bind_rows() %>%
+    mutate(ethn = rep(c("total", "H"), each = 5), 
+           race = "White") %>%
+    pivot_wider(id_cols = c(age, race), names_from = ethn, values_from = value) %>%
+    mutate(NH = total - H) %>%
+    pivot_longer(cols = c(H, NH), names_to = "ethn") %>%
+    select(ethn, race, age, value) %>%
+    left_join(expand_grid(ethn = c("H", "NH"), 
+                          race = c("White", "Black", "Native", 
+                                   "Asian", "Islander", "Other", "2 or more"), 
+                          age = c("0-19", "20-39", "40-59", "60-79", "80+")), 
+              .) %>%
+    tbl_pivot_array()
+  
   # run household IPF to get 4 dimensional marginal for household variables, 
   # but at the person level (# people with Hispanic head of household, etc.)
   target_hh_dims <- list(c(2, 4))
