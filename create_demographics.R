@@ -402,6 +402,7 @@ map(tract_list[1], ~{
     tbl_pivot_array()
   
   ### Income_HH by Ethn_HH by Age_HH by Race_HH Marginals
+  # get all the tables 
   ...iear_tables <-.x %>%
     filter(concept_id %in% ...iear_fields) %>%
     mutate(table = str_sub(concept_id, 1, 7)) %>%
@@ -409,23 +410,64 @@ map(tract_list[1], ~{
     group_by(table) %>%
     group_split# %>% set_names(LETTERS[1:9])
   
-  # get income by age by race
+  # get income_hh by age_hh by race_hh
   ...i.ar_marg <- ...iear_tables[1:7] %>%
     bind_rows() %>%
     bind_cols(tibble(race_hh = rep(c("White", "Black", "Native", 
                                   "Asian", "Islander", "Other", "2 or more"), 
                                 each = 64))) %>%
     select(income_hh, age_hh, race_hh, value) %>%
+    left_join(income_lookup, by = c("income_hh" = "income_bins")) %>% 
+    group_by(income, age_hh, race_hh) %>%
+      summarize(across(value, sum)) %>%
     tbl_pivot_array()
-    
-    
   
+  # income_hh by ethnicity_hh by age_hh
+  ...iea._marg <- ...iear_tables[[9]] %>%
+    bind_rows(
+      ...iear_tables[1:7] %>% 
+        bind_rows() %>%
+        group_by(income_hh, age_hh) %>%
+        summarize(across(value, sum))) %>%
+    mutate(ethn_hh = rep(c("H", "total"), each = 64)) %>%
+    pivot_wider(id_cols = c(age_hh, income_hh), 
+                names_from = ethn_hh, values_from = value) %>%
+    mutate(NH = total - H) %>%
+    pivot_longer(cols = c(H, NH), names_to = "ethn_hh") %>%
+    select(income_hh, ethn_hh, age_hh, value) %>%
+    left_join(income_lookup, by = c("income_hh" = "income_bins")) %>% 
+    group_by(income, ethn_hh, age_hh) %>%
+    summarize(across(value, sum)) %>%
+    tbl_pivot_array()
+  
+  # income_hh by ethnicity_hh by age_hh by race_hh
+  ...iear_marg <- ...iear_tables[c(1,8)] %>%
+    bind_rows() %>%
+    mutate(ethn_hh = rep(c("total", "NH"), each = 64), 
+           race_hh = "White") %>%
+    pivot_wider(id_cols = c(age_hh, income_hh, race_hh), 
+                names_from = ethn_hh, values_from = value) %>%
+    mutate(H = total - NH) %>%
+    pivot_longer(cols = c(NH, H), names_to = "ethn_hh") %>%
+    select(income_hh, ethn_hh, age_hh, race_hh, value) %>%
+    left_join(expand_grid(income_hh = income_bins, 
+                          ethn_hh = c("H", "NH"), 
+                          age_hh = age_bins,
+                          race_hh = c("White", "Black", "Native", 
+                                   "Asian", "Islander", "Other", "2 or more")), 
+              .) %>% 
+    left_join(income_lookup, by = c("income_hh" = "income_bins")) %>% 
+    group_by(income, ethn_hh, age_hh, race_hh) %>%
+    summarize(across(value, sum)) %>%
+    tbl_pivot_array() 
+    
+
   # run household IPF to get 4 dimensional marginal for household variables, 
   # but at the person level (# people with Hispanic head of household, etc.)
-  target_hh_dims <- list(c(2, 4))
-  target_hh_margs <- list(...i.a._marg)
+  target_hh_dims <- list(c(2, 4, 5), c(2,3,4), 2:5)
+  target_hh_margs <- list(...i.ar_marg, ...iea._marg, ...iear_marg)
   hhld_jnt <- Ipfp(seed = pums_hhld, 
-       target_hh_dims, target_hh_margs)$x.hat
+       target_hh_dims, target_hh_margs, na.target = TRUE)$x.hat
   ppl_hh_jnt_raw <- expand_household(hhld_jnt, ppl_var = "NP") 
   # correct for almost certain mismatch between tract-estimate for total # of ppl
   # and values derived from IPF using PUMA seed
