@@ -145,13 +145,22 @@ pums_prsn_df <- pums_prsn_df %>%
   select(state = FIPS, puma = PUMS, ethnicity:count)
 
 save(pums_prsn_df, file = "~/projects/mothr/mobility/census-demogs/data/pums_prsn.RData")
+
+# pums_hh <- read_csv("~/projects/mothr/mobility/PUMS/state_household.csv") %>%
+#   mutate(across(PUMA, ~ str_pad(as.character(.x), 5, side = "left", pad = "0")), 
+#          across(ST, ~ str_pad(as.character(.x), 2, side = "left", pad = "0")))
+# save(pums_hh, file = "~/projects/mothr/mobility/PUMS/state_household.RData")
+
+## load the household  PUMS data
+load("~/projects/mothr/mobility/census-demogs/data/state_household.RData")
+load("~/projects/mothr/mobility/census-demogs/data/pums_prsn.RData")
+
 #### Helpers ####
 ### define demography helper objects for each marginal distribution 
 
-
 ## race_hh / ethnicity_hh / age_hh / income helpers
 
-income_bins <- c("0-10K", "10-15K", "15-20K", "20-25K", "25-30K", "30-35K", 
+income_bins_char <- c("0-10K", "10-15K", "15-20K", "20-25K", "25-30K", "30-35K", 
                  "35-40K", "40-45K", "45-50K", "50-60K", "60-75K", "75-100K", 
                  "100-125K", "125-150K", "150-200K", "200K+")
 income_bins <- c(0, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 75, 100, 125, 150, 200)
@@ -273,18 +282,6 @@ as_fine_df <- tibble(field = as_fine_fields,
 #### IPF Loop ##########################################################
 #### Loop through tracts and calculate joint distributions with IPF ###
 
-
-
-# pums_hh <- read_csv("~/projects/mothr/mobility/PUMS/state_household.csv") %>%
-#   mutate(across(PUMA, ~ str_pad(as.character(.x), 5, side = "left", pad = "0")), 
-#          across(ST, ~ str_pad(as.character(.x), 2, side = "left", pad = "0")))
-# save(pums_hh, file = "~/projects/mothr/mobility/PUMS/state_household.RData")
-
-## load the household level PUMS data
-load("~/projects/mothr/mobility/PUMS/state_household.RData")
-load("~/projects/mothr/mobility/census-demogs/data/pums_prsn.RData")
-
-
 tract_jnt_list <- map(tract_list[1], ~{
 
   #### PUMS to seed IPF 
@@ -310,32 +307,7 @@ tract_jnt_list <- map(tract_list[1], ~{
     tbl_pivot_array(met_name = "N_HSHLD")
   
   #### create marginal distributions
-  ### household-level tract marginals
-  # # age_hh by income_hh marginal
-  # # probably don't need this one at all ... 
-  # ...i.a._marg <- .x %>%
-  #   filter(concept_id %in% ...i.a._fields) %>%
-  #   left_join(...i.a._df, by = c(concept_id = "field")) %>%
-  #   left_join(income_lookup, by = c("income" = "income_bins")) %>%
-  #   group_by(income.y, age_hh) %>%
-  #   summarize(across(value, sum)) %>%
-  #   rename(income = income.y) %>%
-  #   arrange(income, age_hh) %>%
-  #   tbl_pivot_array 
-  # 
-  # # get / create age_hh by income marginal
-  # # just a duplicate of above? TODO delete
-  # ...i.a._marg <- .x %>%
-  #   filter(concept_id %in% ...i.a._fields) %>%
-  #   left_join(...i.a._df, by = c(concept_id = "field")) %>%
-  #   left_join(income_lookup, by = c("income" = "income_bins")) %>%
-  #   group_by(income.y, age_hh) %>%
-  #   summarize(across(value, sum)) %>%
-  #   rename(income = income.y) %>%
-  #   arrange(income, age_hh) %>%
-  #   tbl_pivot_array 
-  # 
-  #### person-level tract data
+  ### person-level tract marginals
   # race by ethnicity marginal
   er....._marg <- .x %>%
     filter(concept_id %in% er....._fields) %>%
