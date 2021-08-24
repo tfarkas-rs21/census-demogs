@@ -242,6 +242,19 @@ as_fine_df <- tibble(field = as_fine_fields,
                        age_hh = age_bins, income = income_bins) %>%
   bind_cols(field = ...iear_fields) 
 
+### income_hh by ethn_hh by age_hh by race_hh new approach!
+### use all of them in the loop, separate then recombine 
+...iear_fields <- paste0("B19037", LETTERS[1:9], "_") %>%
+  map_dfr(~  paste0(.x, 
+                    str_pad(as.character(c(3:18, 20:35, 37:52, 54:69)), 
+                            3, "left", "0") , 
+                    "E") %>%
+            tibble(field = .)) %>% unlist
+
+...iear_df <- tibble(field = ...iear_fields, 
+                     age_hh = rep(rep(age_bins, each = length(income_bins)), 9), 
+                     income_hh = rep(income_bins, 9*4))
+
 #### IPF Loop ##########################################################
 #### Loop through tracts and calculate joint distributions with IPF ###
 
@@ -284,7 +297,7 @@ map(tract_list[1], ~{
     select(ethn, race, value) %>%
     tbl_pivot_array 
   
-  # get / create age_hh by income marginal
+  # get / create age_hh by income_hh marginal
   ...i.a._marg <- .x %>%
     filter(concept_id %in% ...i.a._fields) %>%
     left_join(...i.a._df, by = c(concept_id = "field")) %>%
@@ -387,6 +400,25 @@ map(tract_list[1], ~{
                           age = c("0-19", "20-39", "40-59", "60-79", "80+")), 
               .) %>%
     tbl_pivot_array()
+  
+  ### Income_HH by Ethn_HH by Age_HH by Race_HH Marginals
+  ...iear_tables <-.x %>%
+    filter(concept_id %in% ...iear_fields) %>%
+    mutate(table = str_sub(concept_id, 1, 7)) %>%
+    left_join(...iear_df, by = c("concept_id" = "field")) %>% 
+    group_by(table) %>%
+    group_split# %>% set_names(LETTERS[1:9])
+  
+  # get income by age by race
+  ...i.ar_marg <- ...iear_tables[1:7] %>%
+    bind_rows() %>%
+    bind_cols(tibble(race_hh = rep(c("White", "Black", "Native", 
+                                  "Asian", "Islander", "Other", "2 or more"), 
+                                each = 64))) %>%
+    select(income_hh, age_hh, race_hh, value) %>%
+    tbl_pivot_array()
+    
+    
   
   # run household IPF to get 4 dimensional marginal for household variables, 
   # but at the person level (# people with Hispanic head of household, etc.)
