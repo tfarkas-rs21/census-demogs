@@ -89,6 +89,7 @@ save(tract_list, file = "~/projects/mothr/mobility/demographics/tract_tables_lis
 
 ## PUMS data ##
 ## all the person-level PUMS data
+## not working can't DL this big data from BQ all of a sudden. Use file DL from S3
 state_fips <- pums %>%
   distinct(state) %>% collect()
 state_fips <- pull(state_fips, state)
