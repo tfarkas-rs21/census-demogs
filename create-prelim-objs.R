@@ -119,6 +119,7 @@ pums_prsn_df <- map_dfr(state_fips, ~{
   load("~/projects/mothr/mobility/census-demogs/data/pums_hhld.RData")
   load("~/projects/mothr/mobility/census-demogs/data/pums_prsn.RData")
   load("~/projects/mothr/mobility/census-demogs/data/tract_tables_list.RData")
+  
   # make tract list that had PUMA data
   all_data_list <- map(tract_list, ~{
     
@@ -149,3 +150,10 @@ pums_prsn_df <- map_dfr(state_fips, ~{
     list(tract_data = .x, pums_prsn = pums_prsn, pums_hhld = pums_hhld)
     
   })
+  
+phh <- read_csv("~/projects/mothr/mobility/PUMS/state_household.csv")
+
+phh %>% 
+  distinct(ST, PUMA)
+  
+  
