@@ -8,9 +8,10 @@ library(mipfp)
 source("~/projects/mothr/mobility/census-demogs/helper-functions.R")
 
 ## load PUMS and tract detailed tables data
-load("~/projects/mothr/mobility/census-demogs/data/pums_hhld.RData")
-load("~/projects/mothr/mobility/census-demogs/data/pums_prsn.RData")
-load("~/projects/mothr/mobility/census-demogs/data/tract_tables_list.RData")
+#load("~/projects/mothr/mobility/census-demogs/data/pums_hhld.RData")
+#load("~/projects/mothr/mobility/census-demogs/data/pums_prsn.RData")
+#load("~/projects/mothr/mobility/census-demogs/data/tract_tables_list.RData")
+load("~/projects/mothr/mobility/census-demogs/data/all_data_list.RData")
 
 #### Helpers ####
 ### define demography helper objects for each marginal distribution 
@@ -29,6 +30,12 @@ income_lookup <- tibble(income_bins, income = c(rep("0-25000", 4),
                                                 rep("150000-200000", 1), 
                                                 rep("200000-10000000", 1)))
 age_bins <- c("0-25", "25-44", "45-64", "65-300")
+age_lookup <- tibble(age = c("0-20", "20-40", "40-60", "60-80", "80-300"),
+                     age_bins = c(0, 20, 40, 60, 80))
+income_lookup2 <- tibble(income = c("0-25000", "25000-50000", "50000-75000", 
+                         "75000-100000", "100000-150000", "150000-200000", 
+                         "200000-1000000"), 
+                         income_bins = c(0, 25, 50, 75, 100, 150, 200))
 race_bins <- c("White", "Black", "Native", 
                "Asian", "Islander", "Other", "2 or more")
 ethn_bins <- c("NH", "H")
@@ -138,16 +145,17 @@ as_fine_df <- tibble(field = as_fine_fields,
 #### IPF Loop ##########################################################
 #### Loop through tracts and calculate joint distributions with IPF ###
 
-
-
-
 future::plan(multisession, workers = 20)
 
 x0 <- Sys.time()
-tract_jnt_list <- future_map(all_data_list[1:4], ~{
+tract_jnt_list <- future_map_dfr(all_data_list[1:4], ~{
   
-  pums_prsn <- .x$pums_prsn
-  pums_hhld <- .x$pums_hhld
+  pums_prsn <- .x$pums_prsn %>% 
+    mutate(across(count, ~ ifelse(.x == 0, .1, .x)))
+  pums_hhld <- .x$pums_hhld %>%
+    mutate(across(N_HSHLD, ~ ifelse(.x == 0, .1, .x)))
+  geoid <- .x$geoid
+  puma <- .x$puma
   .x <- .x$tract_data
   
   #### create marginal distributions
@@ -338,26 +346,45 @@ tract_jnt_list <- future_map(all_data_list[1:4], ~{
                             ...iea._marg, ...i.ar_marg, ...iear_marg)
   tract_jnt <- Ipfp(seed = pums_prsn, 
        target_prsn_dims, target_prsn_margs, na.target = TRUE, 
-        tol = 1e-10, iter = 1000)$x.hat #%>%
-    #apply(X = ., MARGIN = c(1, 2, 3, 4), FUN = sum, na.rm = TRUE) #%>%
-    # as.tbl_cube %>%
-    # as.data.frame %>%
-    # rename(count = 5) %>%
-    # mutate(across(count, round, digits = 4))
+        tol = 1e-10, iter = 1000)$x.hat %>%
+    apply(X = ., MARGIN = c(1, 2, 3, 4), FUN = sum, na.rm = TRUE) %>%
+    as.tbl_cube %>%
+    as.data.frame %>%
+    rename(count = 5) %>%
+    mutate(across(count, round, digits = 4)) %>%
+    mutate(geoid = geoid, puma = puma, .before = "ethnicity") %>%
+    mutate(across(ethnicity, ~ recode(.x, H = "hisp", NH = "nhisp")), 
+           across(race, ~ str_to_lower(recode(.x, "2 or more" = "two")))) %>%
+    left_join(income_lookup2, by = "income") %>%
+    select(-income) %>% rename(income = income_bins) %>%
+    left_join(age_lookup, by = "age") %>%
+    select(-age) %>% rename(age = age_bins) %>%
+    mutate(prob = count / sum(count)) %>%
+    select(-count) %>%
+    arrange(ethnicity, race, age, income)
     
 })
 totaltime <- Sys.time() - x0
+print(totaltime)
 
-sum(tract_jnt_list[[2]])
+#save(tract_jnt_list, file = "~/projects/mothr/mobility/census-demogs/data/tract_jnt_list.RData")
 
-apply(tract_jnt_list[[2]], MARGIN = c(1, 2), FUN = sum)
+tract_jnt_list %>% View
 
-tract_jnt_list[[1]] %>%
-  tbl_pivot_array() %>%
-apply(MARGIN = c(1, 2), FUN = sum)
-er....._marg
+tract_jnt_list %>%
+  group_by(geoid) %>%
+  summarize(across(prob, sum))
 
-tract_jnt %>%
+# sum(tract_jnt_list[[2]])
+# 
+# apply(tract_jnt_list[[2]], MARGIN = c(1, 2), FUN = sum)
+# 
+# tract_jnt_list[[1]] %>%
+#   tbl_pivot_array() %>%
+# apply(MARGIN = c(1, 2), FUN = sum)
+# er....._marg
+# 
+# tract_jnt %>%
 
 
 # #### Calculate person counts from household counts ####
