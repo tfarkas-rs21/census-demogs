@@ -1,6 +1,5 @@
 library(dplyr)
-library(purrr)
-library(cubelyr)
+library(tidyr)
 
 # load required data
 load("~/projects/mothr/mobility/census-demogs/data/pums_hhld.RData")
@@ -9,6 +8,11 @@ load("~/projects/mothr/mobility/census-demogs/data/tract_tables_list.RData")
 load("~/projects/mothr/mobility/census-demogs/data/tract_puma_mapping.RData")
 source("~/projects/mothr/mobility/census-demogs/helper-functions.R")
 
+#load("~/hdd/data/pums_hhld.RData")
+#load("~/hdd/data/pums_prsn.RData")
+#load("~/hdd/data/tract_tables_list.RData")
+#load("~/hdd/data/tract_puma_mapping.RData")
+#source("~/scripts/helper-functions.R")
 
 ### an alternate approach for parallelization
 
@@ -65,8 +69,8 @@ pums_prsn_list <- c(pums_prsn_list, list("ones" = na_puma_prsn))
 ###### use lists to combine and transpose 
 
 tract_sub <- tract_puma_df_inds %>%
-  filter(geoid == "27053021300")
-  #sample_n(10)
+  #filter(geoid == "27053021300")
+  sample_n(10)
 tract_names <- tract_sub %>% pull(geoid)
 
 # they all need the same names or transpose yields NULL for mismatches
@@ -78,3 +82,4 @@ tract_all_data <- transpose(list(tct = ts, hhd = ph, psn = pp))
 
 save(tract_all_data, 
      file = "~/projects/mothr/mobility/census-demogs/data/tract_all_data.RData")
+#save(tract_all_data, file = "~/hdd/data/tract_all_data.RData")
