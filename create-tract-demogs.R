@@ -4,10 +4,14 @@ library(furrr)
 library(purrr)
 library(tidyr)
 library(mipfp)
+library(readr)
 
 # load functiona and data for all tracts
 source("~/projects/mothr/mobility/census-demogs/helper-functions.R")
 load("~/projects/mothr/mobility/census-demogs/data/tract_all_data.RData")
+
+#source("~/scripts/helper-functions.R")
+#load("~/hdd/data/tract_all_data.RData")
 
 #### Helpers ####
 ### define demography helper objects for each marginal distribution 
@@ -368,7 +372,11 @@ tract_jnt_df <- future_map_dfr(tract_all_data[1], ~{
     
 })
 
-write_csv(tract_jnt_df, file = "~/projects/mothr/mobility/census-demogs/data/tract_jnt_df.csv")
+write_csv(tract_jnt_df, 
+          file = "~/projects/mothr/mobility/census-demogs/data/tract_jnt_df.csv")
+
+#write_csv(tract_jnt_df, 
+#          file = "~/hdd/data/tract_jnt_df.csv")
 
 
 
