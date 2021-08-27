@@ -5,13 +5,9 @@ library(purrr)
 library(tidyr)
 library(mipfp)
 
+# load functiona and data for all tracts
 source("~/projects/mothr/mobility/census-demogs/helper-functions.R")
-
-## load PUMS and tract detailed tables data
-#load("~/projects/mothr/mobility/census-demogs/data/pums_hhld.RData")
-#load("~/projects/mothr/mobility/census-demogs/data/pums_prsn.RData")
-#load("~/projects/mothr/mobility/census-demogs/data/tract_tables_list.RData")
-load("~/projects/mothr/mobility/census-demogs/data/all_data_list.RData")
+load("~/projects/mothr/mobility/census-demogs/data/tract_all_data.RData")
 
 #### Helpers ####
 ### define demography helper objects for each marginal distribution 
@@ -34,7 +30,7 @@ age_lookup <- tibble(age = c("0-20", "20-40", "40-60", "60-80", "80-300"),
                      age_bins = c(0, 20, 40, 60, 80))
 income_lookup2 <- tibble(income = c("0-25000", "25000-50000", "50000-75000", 
                          "75000-100000", "100000-150000", "150000-200000", 
-                         "200000-1000000"), 
+                         "200000-10000000"), 
                          income_bins = c(0, 25, 50, 75, 100, 150, 200))
 race_bins <- c("White", "Black", "Native", 
                "Asian", "Islander", "Other", "2 or more")
@@ -148,15 +144,23 @@ as_fine_df <- tibble(field = as_fine_fields,
 future::plan(multisession, workers = 20)
 
 x0 <- Sys.time()
-tract_jnt_list <- future_map_dfr(all_data_list[1:4], ~{
+tract_jnt_df <- future_map_dfr(tract_all_data[1:4], ~{
   
-  pums_prsn <- .x$pums_prsn %>% 
-    mutate(across(count, ~ ifelse(.x == 0, .1, .x)))
-  pums_hhld <- .x$pums_hhld %>%
-    mutate(across(N_HSHLD, ~ ifelse(.x == 0, .1, .x)))
-  geoid <- .x$geoid
-  puma <- .x$puma
-  .x <- .x$tract_data
+  pums_prsn <- .x$psn %>% 
+    mutate(across(count, ~ ifelse(.x == 0, .1, .x))) %>%
+    arrange(ethnicity, race, age, income, ethnicity_hh, age_hh, race_hh) %>%
+    select(-c(puma, state)) %>%
+    tbl_pivot_array
+  pums_hhld <- .x$hhd %>%
+    mutate(across(N_HSHLD, ~ ifelse(.x == 0, .1, .x))) %>%
+    select(NP, income_hh, ethn_hh, age_hh, race_hh, N_HSHLD) %>%
+    arrange(NP, income_hh, ethn_hh, age_hh, race_hh) %>%
+    tbl_pivot_array(met_name = "N_HSHLD")
+  geoid <- .x$tct %>% distinct(geoid) %>% pull(geoid) %>% str_sub(10,21)
+  puma <- .x$tct %>% distinct(state, puma) %>% 
+    mutate(puma_id = paste0(state, puma)) %>%
+    pull(puma_id)
+  .x <- .x$tct
   
   #### create marginal distributions
   ### person-level tract marginals
@@ -323,8 +327,7 @@ tract_jnt_list <- future_map_dfr(all_data_list[1:4], ~{
   target_hh_dims <- list(c(2, 4, 5), c(2,3,4), 2:5)
   target_hh_margs <- list(...i.ar_marg_hh, ...iea._marg_hh, ...iear_marg_hh)
   hhld_jnt <- Ipfp(seed = pums_hhld, 
-                   target_hh_dims, target_hh_margs, na.target = TRUE, 
-                   iter = 1000)$x.hat
+                   target_hh_dims, target_hh_margs, na.target = TRUE)$x.hat
   ppl_hh_jnt_raw <- expand_household(hhld_jnt, ppl_var = "NP") 
   # correct for almost certain mismatch between tract-estimate for total # of ppl
   # and values derived from IPF using PUMA seed
@@ -352,7 +355,7 @@ tract_jnt_list <- future_map_dfr(all_data_list[1:4], ~{
     as.data.frame %>%
     rename(count = 5) %>%
     mutate(across(count, round, digits = 4)) %>%
-    mutate(geoid = geoid, puma = puma, .before = "ethnicity") %>%
+    mutate(geoid = geoid, puma_id = puma, .before = "ethnicity") %>%
     mutate(across(ethnicity, ~ recode(.x, H = "hisp", NH = "nhisp")), 
            across(race, ~ str_to_lower(recode(.x, "2 or more" = "two")))) %>%
     left_join(income_lookup2, by = "income") %>%
@@ -360,75 +363,12 @@ tract_jnt_list <- future_map_dfr(all_data_list[1:4], ~{
     left_join(age_lookup, by = "age") %>%
     select(-age) %>% rename(age = age_bins) %>%
     mutate(prob = count / sum(count)) %>%
-    select(-count) %>%
+    #select(-count) %>%
     arrange(ethnicity, race, age, income)
     
 })
-totaltime <- Sys.time() - x0
-print(totaltime)
 
-#save(tract_jnt_list, file = "~/projects/mothr/mobility/census-demogs/data/tract_jnt_list.RData")
-
-tract_jnt_list %>% View
-
-tract_jnt_list %>%
-  group_by(geoid) %>%
-  summarize(across(prob, sum))
-
-# sum(tract_jnt_list[[2]])
-# 
-# apply(tract_jnt_list[[2]], MARGIN = c(1, 2), FUN = sum)
-# 
-# tract_jnt_list[[1]] %>%
-#   tbl_pivot_array() %>%
-# apply(MARGIN = c(1, 2), FUN = sum)
-# er....._marg
-# 
-# tract_jnt %>%
+write_csv(tract_jnt_df, file = "~/projects/mothr/mobility/census-demogs/data/tract_jnt_df.csv")
 
 
-# #### Calculate person counts from household counts ####
-# 
-# hhd <- read_csv("~/projects/mothr/mobility/PUMS/nm_household_data.csv", 
-#                 col_types = c(NP = "c")) 
-# 
-# puma100 <- hhd %>% filter(PUMA == "00100") %>%
-#   mutate(across(NP, ~ str_pad(.x, 2, "left", "0"))) %>% 
-#   arrange(PUMA, age_hh, race_hh, ethn_hh, income, NP) %>%
-#   select(NP:age_hh, N_HSHLD) #%>% 
-#  
-#   #distinct() %>%
-#   #arrange(age_hh, race_hh, ethn_hh, income, NP) %>% View
-#   #arrange(NP, income, ethn_hh, race_hh, age_hh) %>% View
-#   tbl_pivot_array(data = ., met_name = "N_HSHLD")
-# 
-# ...i.a._marg <- .x %>%
-#   filter(concept_id %in% ...i.a._fields) %>%
-#   left_join(...i.a._df, by = c(concept_id = "field")) %>%
-#   left_join(income_lookup, by = c("income" = "income_bins")) %>%
-#   group_by(income.y, age_hh) %>%
-#   summarize(across(value, sum)) %>%
-#   rename(income = income.y) %>%
-#   arrange(age_hh, income) %>%
-#   tbl_pivot_array 
-# 
-# target_dims <- list(c(2, 5))
-# target_margs <- list(...i.a._marg)
-# hhout <- Ipfp(seed = puma100, 
-#      target_dims, target_margs)$x.hat
-# 
-# pplout <- expand_household(hhout, ppl_var = "NP")
-# 
-# 
-# ### compare Tim and Sravani PUMS
-# puma100_ST <- read_csv("~/projects/mothr/mobility/PUMS/pums_100.csv")
-# 
-# ### test overlapping / non-partitioned distribution estimation
-# ## OK use this to infer finer age bins from coarser. 
-# 
-# yr5bins <- matrix(c(1, 5, 0, 0, 0, 0, 5, 7), nrow = 4)
-# target_dims <- list(2)
-# target_margs <- list(c(10, 20))
-# Ipfp(seed = yr5bins, 
-#      target_dims, target_margs)$x.hat
 

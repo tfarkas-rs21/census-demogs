@@ -71,41 +71,5 @@ pp <- pums_prsn_list[tract_sub %>% pull(puma_prsn)] %>% set_names(tract_names)
 
 tract_all_data <- transpose(list(tct = ts, hhd = ph, psn = pp))
 
-
-
-
-
-######## This approach is too slow!! Can't parallelize!
-
-# make tract list that has PUMA data and identifiers
-all_data_list <- map(tract_list[1:4], ~{
-  
-  #### PUMS to seed IPF 
-  thispuma <- .x %>% pull(puma) %>% unique # PUMA for tract
-  thisstate <- .x %>% pull(state) %>% unique # state for tract
-  
-  # create seed for final IPF from enclosing PUMA to this tract
-  pums_prsn <- pums_prsn_df %>%
-    filter(puma == thispuma , 
-           state == thisstate) %>%
-    arrange(ethnicity, race, age, income, ethnicity_hh, age_hh, race_hh) %>%
-    select(-c(puma, state)) %>%
-    tbl_pivot_array
-  
-  # create seed for intermediate IPF to create person-level data from 
-  # household level data, leveraging NP (number of people per household)
-  # from raw PUMS data. 
-  pums_hhld <- pums_hh %>%
-    filter(PUMA == thispuma, 
-           ST == thisstate) %>%
-    select(NP, income_hh, ethn_hh, age_hh, race_hh, N_HSHLD) %>%
-    arrange(NP, income_hh, ethn_hh, age_hh, race_hh) %>%
-    tbl_pivot_array(met_name = "N_HSHLD")
-  
-  list(tract_data = .x, pums_prsn = pums_prsn, pums_hhld = pums_hhld, 
-       puma = thispuma, geoid = unique(.x$geoid))
-  
-})
-
-save(all_data_list, file = "~/projects/mothr/mobility/census-demogs/data/all_data_list.RData")
-
+save(tract_all_data, 
+     file = "~/projects/mothr/mobility/census-demogs/data/tract_all_data.RData")
