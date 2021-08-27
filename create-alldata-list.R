@@ -1,5 +1,6 @@
 library(dplyr)
 library(tidyr)
+library(purrr)
 
 # load required data
 load("~/projects/mothr/mobility/census-demogs/data/pums_hhld.RData")
