@@ -32,6 +32,8 @@ tract_puma_df_inds <- tract_puma_df %>%
 ## split household and person pums into lists, add a "ones" element, and name them
 # houshold file
 pums_hh_list <- pums_hh %>%
+  complete(nesting(ST, PUMA, NP), income_hh, ethn_hh, age_hh, race_hh, 
+           fill = list(N_HSHLD = 0)) %>%
   group_by(ST, PUMA) %>%
   group_split %>%
   set_names(pums_hh %>% 
@@ -46,6 +48,8 @@ pums_hh_list <- c(pums_hh_list, list("ones" = na_puma_hh))
 
 # person file
 pums_prsn_list <- pums_prsn_df %>%
+  complete(nesting(state, puma), ethnicity, race, age, income, ethnicity_hh, age_hh, race_hh, 
+           fill = list(count = 0)) %>%
   group_by(state, puma) %>%
   group_split %>%
   set_names(pums_prsn_df %>% 
@@ -61,7 +65,8 @@ pums_prsn_list <- c(pums_prsn_list, list("ones" = na_puma_prsn))
 ###### use lists to combine and transpose 
 
 tract_sub <- tract_puma_df_inds %>%
-  sample_n(10)
+  filter(geoid == "27053021300")
+  #sample_n(10)
 tract_names <- tract_sub %>% pull(geoid)
 
 # they all need the same names or transpose yields NULL for mismatches

@@ -144,12 +144,12 @@ as_fine_df <- tibble(field = as_fine_fields,
 future::plan(multisession, workers = 20)
 
 x0 <- Sys.time()
-tract_jnt_df <- future_map_dfr(tract_all_data[1:4], ~{
+tract_jnt_df <- future_map_dfr(tract_all_data[1], ~{
   
   pums_prsn <- .x$psn %>% 
     mutate(across(count, ~ ifelse(.x == 0, .1, .x))) %>%
-    arrange(ethnicity, race, age, income, ethnicity_hh, age_hh, race_hh) %>%
     select(-c(puma, state)) %>%
+    arrange(ethnicity, race, age, income, ethnicity_hh, age_hh, race_hh) %>%
     tbl_pivot_array
   pums_hhld <- .x$hhd %>%
     mutate(across(N_HSHLD, ~ ifelse(.x == 0, .1, .x))) %>%
