@@ -151,9 +151,16 @@ pums_prsn_df <- map_dfr(state_fips, ~{
     
   })
   
-phh <- read_csv("~/projects/mothr/mobility/PUMS/state_household.csv")
-
-phh %>% 
-  distinct(ST, PUMA)
+### get mapping for tracts to PUMAs
+  # get tract mapping to pums
+  tract_puma_df <- tract_list %>%
+    map_df( ~ {
+      .x %>%
+        distinct(state, county, tract, puma) %>%
+        mutate(geoid = paste0(state, county, tract),
+               puma_id = ifelse(is.na(puma), "NA", paste0(state, puma)))
+    })
+  
+  save(tract_puma_df, file = "~/projects/mothr/mobility/census-demogs/data/tract_puma_mapping.RData")
   
   

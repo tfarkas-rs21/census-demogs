@@ -1,57 +1,16 @@
 library(dplyr)
 library(purrr)
-library(cubleyr)
+library(cubelyr)
 
 # load required data
 load("~/projects/mothr/mobility/census-demogs/data/pums_hhld.RData")
 load("~/projects/mothr/mobility/census-demogs/data/pums_prsn.RData")
 load("~/projects/mothr/mobility/census-demogs/data/tract_tables_list.RData")
+load("~/projects/mothr/mobility/census-demogs/data/tract_puma_mapping.RData")
 source("~/projects/mothr/mobility/census-demogs/helper-functions.R")
 
-# make tract list that has PUMA data and identifiers
-all_data_list <- map(tract_list[1:4], ~{
-  
-  #### PUMS to seed IPF 
-  thispuma <- .x %>% pull(puma) %>% unique # PUMA for tract
-  thisstate <- .x %>% pull(state) %>% unique # state for tract
-  
-  # create seed for final IPF from enclosing PUMA to this tract
-  pums_prsn <- pums_prsn_df %>%
-    filter(puma == thispuma , 
-           state == thisstate) %>%
-    arrange(ethnicity, race, age, income, ethnicity_hh, age_hh, race_hh) %>%
-    select(-c(puma, state)) %>%
-    tbl_pivot_array
-  
-  # create seed for intermediate IPF to create person-level data from 
-  # household level data, leveraging NP (number of people per household)
-  # from raw PUMS data. 
-  pums_hhld <- pums_hh %>%
-    filter(PUMA == thispuma, 
-           ST == thisstate) %>%
-    select(NP, income_hh, ethn_hh, age_hh, race_hh, N_HSHLD) %>%
-    arrange(NP, income_hh, ethn_hh, age_hh, race_hh) %>%
-    tbl_pivot_array(met_name = "N_HSHLD")
-  
-   list(tract_data = .x, pums_prsn = pums_prsn, pums_hhld = pums_hhld, 
-        puma = thispuma, geoid = unique(.x$geoid))
-  
-})
-
-save(all_data_list, file = "~/projects/mothr/mobility/census-demogs/data/all_data_list.RData")
 
 ### an alternate approach for parallelization
-
-# get tract mapping to pums
-tract_puma_df <- tract_list %>%
-  map_df( ~ {
-    .x %>%
-      distinct(state, county, tract, puma) %>%
-      mutate(geoid = paste0(state, county, tract),
-               puma_id = ifelse(is.na(puma), "NA", paste0(state, puma)))
-  })
-
-save(tract_puma_df, file = "~/projects/mothr/mobility/census-demogs/data/tract_puma_mapping.RData")
 
 pums_hh_names <- pums_hh %>%
   distinct(ST, PUMA) %>%
@@ -99,15 +58,54 @@ na_puma_prsn <- pums_prsn_list[[1]] %>%
 
 pums_prsn_list <- c(pums_prsn_list, list("ones" = na_puma_prsn))
 
-###### name tract list
-tract_list <- tract_list %>%
-  as.list %>%
-  set_names(tract_puma_df %>% pull(geoid))
+###### use lists to combine and transpose 
 
-save(tract_list, file = "~/projects/mothr/mobility/census-demogs/data/tract_tables_list.RData")
+tract_sub <- tract_puma_df_inds %>%
+  sample_n(4)
+tract_names <- tract_sub %>% pull(geoid)
 
-###### test permute
+# they all need the same names or transpose yields NULL for mismatches
+ts <- tract_list[tract_sub %>% pull(geoid)] %>% set_names(tract_names)
+ph <- pums_hh_list[tract_sub %>% pull(puma_hh)] %>% set_names(tract_names)
+pp <- pums_prsn_list[tract_sub %>% pull(puma_prsn)] %>% set_names(tract_names)
+
+tract_all_data <- transpose(list(tct = ts, hhd = ph, psn = pp))
 
 
-ts <- tract_list[1:3] %>% as.list
-ph <- pums_hh_list_expanded[1:3]
+
+
+
+######## This approach is too slow!! Can't parallelize!
+
+# make tract list that has PUMA data and identifiers
+all_data_list <- map(tract_list[1:4], ~{
+  
+  #### PUMS to seed IPF 
+  thispuma <- .x %>% pull(puma) %>% unique # PUMA for tract
+  thisstate <- .x %>% pull(state) %>% unique # state for tract
+  
+  # create seed for final IPF from enclosing PUMA to this tract
+  pums_prsn <- pums_prsn_df %>%
+    filter(puma == thispuma , 
+           state == thisstate) %>%
+    arrange(ethnicity, race, age, income, ethnicity_hh, age_hh, race_hh) %>%
+    select(-c(puma, state)) %>%
+    tbl_pivot_array
+  
+  # create seed for intermediate IPF to create person-level data from 
+  # household level data, leveraging NP (number of people per household)
+  # from raw PUMS data. 
+  pums_hhld <- pums_hh %>%
+    filter(PUMA == thispuma, 
+           ST == thisstate) %>%
+    select(NP, income_hh, ethn_hh, age_hh, race_hh, N_HSHLD) %>%
+    arrange(NP, income_hh, ethn_hh, age_hh, race_hh) %>%
+    tbl_pivot_array(met_name = "N_HSHLD")
+  
+  list(tract_data = .x, pums_prsn = pums_prsn, pums_hhld = pums_hhld, 
+       puma = thispuma, geoid = unique(.x$geoid))
+  
+})
+
+save(all_data_list, file = "~/projects/mothr/mobility/census-demogs/data/all_data_list.RData")
+
