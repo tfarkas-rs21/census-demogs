@@ -8,7 +8,7 @@ library(readr)
 
 # load functiona and data for all tracts
 source("~/projects/mothr/mobility/census-demogs/helper-functions.R")
-load("~/projects/mothr/mobility/census-demogs/data/tract_all_data.RData")
+load("~/projects/mothr/mobility/census-demogs/data/tract_all_data_10.RData")
 
 #source("~/scripts/helper-functions.R")
 #load("~/hdd/data/tract_all_data.RData")
@@ -351,6 +351,12 @@ tract_jnt_df <- future_map_dfr(tract_all_data, ~{
   target_prsn_margs <- list(er....._marg, .ra...._marg, e.a...._marg, 
                             era...._marg, 
                             ...iea._marg, ...i.ar_marg, ...iear_marg)
+  
+  # in case there are no household data, exclude them!
+  if(sum(ppl_hh_jnt_raw) == 0) {
+    target_prsn_dims <- target_prsn_dims[1:4]
+    target_prsn_margs <- target_prsn_margs[1:4]
+  }
   tract_jnt <- Ipfp(seed = pums_prsn, 
        target_prsn_dims, target_prsn_margs, na.target = TRUE, 
         tol = 1e-10, iter = 1000)$x.hat %>%
