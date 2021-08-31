@@ -110,10 +110,10 @@ pums_prsn_df <- map_dfr(state_fips, ~{
   
   save(pums_prsn_df, file = "~/projects/mothr/mobility/census-demogs/data/pums_prsn.RData")
   
-  # pums_hh <- read_csv("~/projects/mothr/mobility/PUMS/state_household.csv") %>%
-  #   mutate(across(PUMA, ~ str_pad(as.character(.x), 5, side = "left", pad = "0")), 
-  #          across(ST, ~ str_pad(as.character(.x), 2, side = "left", pad = "0")))
-  # save(pums_hh, file = "~/projects/mothr/mobility/census-demogs/data/pums_hhld.RData")
+  pums_hh <- read_csv("~/projects/mothr/mobility/PUMS/state_household.csv") %>%
+    mutate(across(PUMA, ~ str_pad(as.character(.x), 5, side = "left", pad = "0")),
+           across(ST, ~ str_pad(as.character(.x), 2, side = "left", pad = "0")))
+  save(pums_hh, file = "~/projects/mothr/mobility/census-demogs/data/pums_hhld.RData")
   
   
   load("~/projects/mothr/mobility/census-demogs/data/pums_hhld.RData")

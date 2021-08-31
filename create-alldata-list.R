@@ -19,12 +19,12 @@ source("~/projects/mothr/mobility/census-demogs/helper-functions.R")
 
 pums_hh_names <- pums_hh %>%
   distinct(ST, PUMA) %>%
-  mutate(puma_id = paste0(ST,PUMA), 
+  mutate(puma_id = paste0(ST,PUMA),
          hh_ind = TRUE)
 
 pums_prsn_names <- pums_prsn_df %>%
   distinct(state, puma) %>%
-  mutate(puma_id = paste0(state,puma), 
+  mutate(puma_id = paste0(state,puma),
          prsn_ind = TRUE)
 
 tract_puma_df_inds <- tract_puma_df %>%
@@ -70,8 +70,8 @@ pums_prsn_list <- c(pums_prsn_list, list("ones" = na_puma_prsn))
 ###### use lists to combine and transpose 
 
 tract_sub <- tract_puma_df_inds %>%
-  #filter(geoid == "27053021300")
-  sample_n(10)
+  filter(geoid == "26099982200")
+  #sample_n(10)
 tract_names <- tract_sub %>% pull(geoid)
 
 # they all need the same names or transpose yields NULL for mismatches
