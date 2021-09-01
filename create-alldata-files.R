@@ -1,6 +1,7 @@
 library(dplyr)
 library(tidyr)
 library(purrr)
+library(readr)
 library(furrr)
 
 data_path <- "~/projects/mothr/mobility/census-demogs/data/" # local
@@ -29,17 +30,16 @@ na_puma_hh <- pums_hh_list[[1]] %>%
 pums_hh_list <- c(pums_hh_list, list("ones" = na_puma_hh))
 
 # write_csv each pums_hh out as individual RData files
-#t0 <- Sys.time()
-future_walk2(.x = pums_hh_list[1:1000], .y = names(pums_hh_list)[1:1000], ~ {
-  write_csv(.x, 
-       file = paste0(data_path, "puma_hh/",
-                     "pums_hh_", 
-                     .y, ".csv"))
+t0 <- Sys.time()
+future_walk2(.x = pums_hh_list[1:10], .y = names(pums_hh_list)[1:10], ~{
+  filename = paste0(data_path, "puma_hh/", "pums_hh_", .y, ".csv")
+  print(paste(filename, Sys.time() - t0, sep = ", "))  
+#  cat("\n")
+  write_csv(.x, file = filename)
      })
-#t1 <- Sys.time() - t0
 
 rm(pums_hh, pums_hh_list, na_puma_hh)
-gc()
+gc(FALSE)
 
 # person file
 load(paste0(data_path, "pums_prsn.RData"))
@@ -58,25 +58,25 @@ na_puma_prsn <- pums_prsn_list[[1]] %>%
   mutate(count = .1)
 
 pums_prsn_list <- c(pums_prsn_list, list("ones" = na_puma_prsn))
-
+t0 = Sys.time()
 # write_csv each pums_pp out as individual RData files
-future_walk2(.x = pums_prsn_list[1:100], .y = names(pums_prsn_list)[1:100], ~ {
-  write_csv(.x, 
-       file = paste0(data_path,"puma_pp/",
-                     "pums_pp_", 
-                     .y, ".csv"))
-})
+future_walk2(.x = pums_prsn_list[1:10], .y = names(pums_prsn_list)[1:10], ~ {
+  filename = paste0(data_path, "puma_pp/", "pums_pp_", .y, ".csv")
+  print(paste(filename, Sys.time() - t0, sep = ", "))  
+#  cat("\n")
+  write_csv(.x, file = filename)
+	      } )
 
 rm(pums_prsn_df, pums_prsn_list, na_puma_prsn)
-gc()
+gc(FALSE)
 
 # tracts 
 load(paste0(data_path,"tract_tables_list.RData"))
-
-future_walk2(tract_list[1:100], names(tract_list)[1:100], ~ {
-  write_csv(.x, 
-       file = paste0(data_path, "tracts/",
-                     "tract_", 
-                     .y, ".csv"))
+t0 = Sys.time()
+future_walk2(tract_list[1:10], names(tract_list)[1:10], ~ {
+  filename = paste0(data_path, "tracts/", "tract_", .y, ".csv")
+  print(paste(filename, Sys.time() - t0, sep = ", "))  
+#  cat("\n")
+  write_csv(.x, file = filename)
 })
 
