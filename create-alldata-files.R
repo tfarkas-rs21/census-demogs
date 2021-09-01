@@ -1,6 +1,7 @@
 library(dplyr)
 library(tidyr)
 library(purrr)
+library(furrr)
 
 data_path <- "~/projects/mothr/mobility/census-demogs/data/" # local
 #data_path <- "~/hdd/data/" # ec2
@@ -27,13 +28,13 @@ na_puma_hh <- pums_hh_list[[1]] %>%
 
 pums_hh_list <- c(pums_hh_list, list("ones" = na_puma_hh))
 
-# save each pums_hh out as individual RData files
+# write_csv each pums_hh out as individual RData files
 #t0 <- Sys.time()
 future_walk2(.x = pums_hh_list[1:1000], .y = names(pums_hh_list)[1:1000], ~ {
-  save(.x, 
+  write_csv(.x, 
        file = paste0(data_path, "puma_hh/",
                      "pums_hh_", 
-                     .y, ".RData"))
+                     .y, ".csv"))
      })
 #t1 <- Sys.time() - t0
 
@@ -58,12 +59,12 @@ na_puma_prsn <- pums_prsn_list[[1]] %>%
 
 pums_prsn_list <- c(pums_prsn_list, list("ones" = na_puma_prsn))
 
-# save each pums_pp out as individual RData files
+# write_csv each pums_pp out as individual RData files
 future_walk2(.x = pums_prsn_list[1:100], .y = names(pums_prsn_list)[1:100], ~ {
-  save(.x, 
+  write_csv(.x, 
        file = paste0(data_path,"puma_pp/",
                      "pums_pp_", 
-                     .y, ".RData"))
+                     .y, ".csv"))
 })
 
 rm(pums_prsn_df, pums_prsn_list, na_puma_prsn)
@@ -73,9 +74,9 @@ gc()
 load(paste0(data_path,"tract_tables_list.RData"))
 
 future_walk2(tract_list[1:100], names(tract_list)[1:100], ~ {
-  save(.x, 
+  write_csv(.x, 
        file = paste0(data_path, "tracts/",
                      "tract_", 
-                     .y, ".RData"))
+                     .y, ".csv"))
 })
 
