@@ -5,14 +5,19 @@ library(purrr)
 library(tidyr)
 library(mipfp)
 library(readr)
+library(foreach)
 library(parallel)
+library(doParallel)
 
-#data_path <- "~/projects/mothr/mobility/census-demogs/data/" # local
-data_path <- "~/hdd/data/" # ec2
+data_path <- "~/projects/mothr/mobility/census-demogs/data/" # local
+#data_path <- "~/hdd/data/" # ec2
+
+scripts_path <- "~/projects/mothr/mobility/census-demogs/"
+#scripts_path <- "~/scripts/"
 
 # load functiona and data for all tracts
-source(paste0("~/scripts/helper-functions.R"))
-#load("~/projects/mothr/mobility/census-demogs/data/tract_all_data_10.RData")
+source(paste0(scripts_path, "helper-functions.R"))
+
 
 #source("~/scripts/helper-functions.R")
 #load("~/hdd/data/tract_all_data.RData")
@@ -149,25 +154,30 @@ as_fine_df <- tibble(field = as_fine_fields,
 #### IPF Loop ##########################################################
 #### Loop through tracts and calculate joint distributions with IPF ###
 
-#future::plan(multisession, workers = 20)
 
 load(paste0(data_path, "tract_puma_mapping.RData"))
 
 tract_list_map <- tract_puma_df %>%
   select(geoid, puma_id) %>%
+  filter(geoid == "01003990000") %>%
   group_by(geoid) %>%
   group_split
-write("starting loop", stderr())
-tract_jnt_list <- mclapply(function(.x) {
+
+#write("starting loop", stderr())
+
+cl <- parallel::makeForkCluster(14, outfile = "~/scripts/ipf_err.log")
+doParallel::registerDoParallel(cl)
+
+tract_jnt_df <- foreach(x = tract_list_map[1], .combine = "bind_cols", .multicombine = TRUE, 
+		     .packages = c("dplyr", "tidyr", "readr", "purrr", "stringr", "mipfp")) %dopar% {
   
+  .x <- x	
   geoid <- .x %>% pull(geoid)
-  #puma <- .x %>% pull(puma_id)
-  puma <- "0607702"
+  puma <- .x %>% pull(puma_id)
   
   .x <- read_csv(file = paste0(data_path, "tracts/tract_", geoid, ".csv"))
-  ph <- read_csv(file = paste0(data_path, "puma_hh/pums_hh_", puma_id, ".csv"))
-  #pp <- read_csv(file = paste0(data_path, "puma_pp/pums_pp_", puma_id, ".csv"))
-  pp <- read_csv(file = paste0(data_path, "puma_pp/pums_pp_0607702.csv"))
+  ph <- read_csv(file = paste0(data_path, "puma_hh/pums_hh_", puma, ".csv"))
+  pp <- read_csv(file = paste0(data_path, "puma_pp/pums_pp_", puma, ".csv"))
   
   # basic transform on puma person data
   pums_prsn <- pp %>% 
@@ -374,6 +384,7 @@ tract_jnt_list <- mclapply(function(.x) {
     target_prsn_dims <- target_prsn_dims[1:4]
     target_prsn_margs <- target_prsn_margs[1:4]
   }
+  
   tract_jnt <- Ipfp(seed = pums_prsn, 
        target_prsn_dims, target_prsn_margs, na.target = TRUE, 
         tol = 1e-10, iter = 1000)$x.hat %>%
@@ -394,8 +405,13 @@ tract_jnt_list <- mclapply(function(.x) {
     arrange(ethnicity, race, age, income) 
 
     write_csv(tract_jnt, file = paste0(data_path, "ipf_results/tracts/ipf_tract_", geoid, ".csv"))
-    
-}, .x = tract_list_map[1:10])
+    t1 <- Sys.time() - t0
+  cat(paste(geoid, puma,  
+	     ifelse(sum(ppl_hh_jnt_raw) == 0, "No household data!", "                  "),
+ t1, attr(t1, "units"), "\n", sep = ", ") )
 
-#write_csv(tract_jnt_df, 
-#          file = paste0(data_path, "ipf_results/tract_jnt_df.csv"))
+    return(tract_jnt)    
+}
+
+write_csv(tract_jnt_df, 
+          file = paste0(data_path, "ipf_results/tract_jnt_df.csv"))
